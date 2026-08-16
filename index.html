@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Productivity Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'Inter', 'system-ui', 'sans-serif'],
+          },
+        },
+      },
+    };
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(-10px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @keyframes slideOut {
+      to { opacity: 0; transform: translateX(24px); height: 0; margin: 0; padding: 0; }
+    }
+    @keyframes pulse-glow {
+      0%, 100% { opacity: 0.4; transform: scale(1); }
+      50%       { opacity: 0.7; transform: scale(1.05); }
+    }
+    @keyframes progress-shine {
+      0%   { background-position: 200% center; }
+      100% { background-position: -200% center; }
+    }
+    .task-enter { animation: fadeIn 0.3s ease-out; }
+    .task-exit  { animation: slideOut 0.28s ease-in forwards; overflow: hidden; }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.04);
+      backdrop-filter: blur(24px);
+      -webkit-backdrop-filter: blur(24px);
+    }
+    .glass-border {
+      position: relative;
+      background: rgba(15, 15, 25, 0.6);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+    }
+    .glass-border::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      padding: 1px;
+      background: linear-gradient(135deg, rgba(99,102,241,0.5), rgba(168,85,247,0.3), rgba(236,72,153,0.4));
+      -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events: none;
+    }
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(80px);
+      pointer-events: none;
+      animation: pulse-glow 8s ease-in-out infinite;
+    }
+    .progress-fill {
+      background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899, #6366f1);
+      background-size: 200% 100%;
+      animation: progress-shine 4s linear infinite;
+    }
+    .tab-active {
+      background: rgba(255, 255, 255, 0.08);
+      color: #fff;
+      box-shadow: inset 0 0 0 1px rgba(255,255,255,0.1);
+    }
+    .category-btn.selected { box-shadow: 0 0 0 2px rgba(255,255,255,0.9); transform: scale(1.05); }
+
+    #taskList::-webkit-scrollbar { width: 4px; }
+    #taskList::-webkit-scrollbar-track { background: transparent; }
+    #taskList::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 4px; }
+  </style>
+</head>
+<body class="min-h-screen bg-[#0a0a12] text-white font-sans antialiased overflow-x-hidden">
+
+  <!-- Background orbs -->
+  <div class="orb w-[500px] h-[500px] bg-indigo-600/30 -top-32 -left-32"></div>
+  <div class="orb w-[400px] h-[400px] bg-purple-600/25 top-1/2 -right-48" style="animation-delay: -3s"></div>
+  <div class="orb w-[350px] h-[350px] bg-pink-600/20 bottom-0 left-1/3" style="animation-delay: -5s"></div>
+
+  <div class="relative min-h-screen flex items-start justify-center p-4 sm:p-8 pt-8 sm:pt-12">
+    <div class="w-full max-w-2xl space-y-5">
+
+      <!-- Header -->
+      <header class="text-center mb-2">
+        <div class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full glass-card border border-white/10 text-xs text-indigo-300 font-medium mb-4">
+          <span class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+          AI Productivity Dashboard
+        </div>
+        <h1 class="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-indigo-100 to-purple-200 bg-clip-text text-transparent">
+          Ваш день под контролем
+        </h1>
+        <p class="text-white/40 mt-2 text-sm" id="taskCounter">нет задач</p>
+      </header>
+
+      <!-- Progress bar -->
+      <div class="glass-border rounded-2xl p-5">
+        <div class="flex items-center justify-between mb-3">
+          <span class="text-sm font-semibold text-white/80">Прогресс дня</span>
+          <span class="text-sm font-bold text-indigo-300" id="progressPercent">0%</span>
+        </div>
+        <div class="h-2.5 rounded-full bg-white/5 overflow-hidden">
+          <div id="progressBar" class="progress-fill h-full rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+        </div>
+        <p class="text-xs text-white/30 mt-2" id="progressLabel">Добавьте задачи, чтобы начать</p>
+      </div>
+
+      <!-- Motivational quote -->
+      <div class="glass-border rounded-2xl p-5 flex gap-4 items-start">
+        <div class="flex-shrink-0 w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500/30 to-purple-500/30 flex items-center justify-center border border-white/10">
+          <svg class="w-5 h-5 text-indigo-300" fill="currentColor" viewBox="0 0 24 24">
+            <path d="M4.583 17.321C3.553 16.227 3 15 3 13.011c0-3.5 2.457-6.637 6.03-8.45l1.135 1.668C7.175 7.255 5.5 9.855 5.5 13.011c0 1.469.433 2.294 1.083 3.021l-1 1.289zm15 0c1.03-1.094 1.583-2.321 1.583-4.31 0-3.5-2.457-6.637-6.03-8.45l-1.135 1.668C16.825 7.255 18.5 9.855 18.5 13.011c0 1.469-.433 2.294-1.083 3.021l1 1.289z"/>
+          </svg>
+        </div>
+        <div>
+          <p class="text-white/70 text-sm leading-relaxed italic" id="quoteText"></p>
+          <p class="text-white/30 text-xs mt-2" id="quoteAuthor"></p>
+        </div>
+      </div>
+
+      <!-- Main card -->
+      <div class="glass-border rounded-3xl overflow-hidden">
+
+        <!-- Add task form -->
+        <div class="p-5 border-b border-white/5">
+          <form id="taskForm">
+            <input
+              id="taskInput"
+              type="text"
+              placeholder="Новая задача..."
+              autocomplete="off"
+              maxlength="200"
+              class="w-full px-4 py-3.5 bg-white/5 border border-white/10 rounded-xl text-white placeholder-white/30
+                     focus:outline-none focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all mb-3"
+            >
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex gap-2" id="categoryPicker">
+                <button type="button" data-category="work" class="category-btn selected px-3 py-1.5 rounded-lg text-xs font-semibold
+                  bg-blue-500/20 text-blue-300 border border-blue-500/30 transition-all">Работа</button>
+                <button type="button" data-category="study" class="category-btn px-3 py-1.5 rounded-lg text-xs font-semibold
+                  bg-violet-500/20 text-violet-300 border border-violet-500/30 transition-all">Учеба</button>
+                <button type="button" data-category="personal" class="category-btn px-3 py-1.5 rounded-lg text-xs font-semibold
+                  bg-rose-500/20 text-rose-300 border border-rose-500/30 transition-all">Личное</button>
+              </div>
+              <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500
+                active:scale-95 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-indigo-500/25 flex items-center gap-2">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4"/>
+                </svg>
+                Добавить
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <!-- Filter tabs -->
+        <div class="flex gap-1 p-2 mx-4 mt-4 rounded-xl bg-white/5 border border-white/5">
+          <button data-filter="all" class="filter-tab tab-active flex-1 py-2 text-xs font-semibold rounded-lg text-white/50 transition-all">Все</button>
+          <button data-filter="active" class="filter-tab flex-1 py-2 text-xs font-semibold rounded-lg text-white/50 transition-all">В работе</button>
+          <button data-filter="completed" class="filter-tab flex-1 py-2 text-xs font-semibold rounded-lg text-white/50 transition-all">Завершённые</button>
+        </div>
+
+        <!-- Task list -->
+        <ul id="taskList" class="px-2 py-2 max-h-[380px] overflow-y-auto space-y-1"></ul>
+
+        <!-- Empty state -->
+        <div id="emptyState" class="hidden py-14 px-6 text-center">
+          <div class="w-14 h-14 mx-auto mb-4 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center">
+            <svg class="w-7 h-7 text-white/20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+            </svg>
+          </div>
+          <p class="text-white/40 font-medium text-sm" id="emptyText">Пока нет задач</p>
+          <p class="text-white/20 text-xs mt-1">Создайте первую — и двигайтесь вперёд</p>
+        </div>
+
+        <!-- Footer -->
+        <div id="footer" class="hidden p-4 border-t border-white/5">
+          <button id="clearCompleted"
+            class="w-full py-2.5 px-4 text-sm font-semibold text-rose-300 bg-rose-500/10 hover:bg-rose-500/20
+                   border border-rose-500/20 rounded-xl transition-all">
+            Удалить все выполненные задачи
+          </button>
+        </div>
+      </div>
+
+      <p class="text-center text-white/20 text-xs pb-4">Данные сохраняются автоматически в localStorage</p>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY = 'todo-tasks';
+
+    const CATEGORIES = {
+      work:     { label: 'Работа',  badge: 'bg-blue-500/20 text-blue-300 border-blue-500/30' },
+      study:    { label: 'Учеба',   badge: 'bg-violet-500/20 text-violet-300 border-violet-500/30' },
+      personal: { label: 'Личное',  badge: 'bg-rose-500/20 text-rose-300 border-rose-500/30' },
+    };
+
+    const QUOTES = [
+      { text: 'Начните там, где вы есть. Используйте то, что у вас есть. Делайте то, что можете.', author: 'Arthur Ashe' },
+      { text: 'Продуктивность — это не о том, чтобы быть занятым, а о том, чтобы двигаться вперёд.', author: 'AI Coach' },
+      { text: 'Маленький шаг каждый день — это большой результат через год.', author: 'AI Coach' },
+      { text: 'Фокус — это суперсила. Одна задача за раз.', author: 'AI Coach' },
+      { text: 'Не ждите идеального момента — создайте его.', author: 'AI Coach' },
+      { text: 'Дисциплина — мост между целями и достижениями.', author: 'Jim Rohn' },
+      { text: 'Лучшее время посадить дерево было 20 лет назад. Следующее лучшее — сегодня.', author: 'Китайская пословица' },
+      { text: 'Вы не обязаны быть великолепным, чтобы начать. Но нужно начать, чтобы стать великолепным.', author: 'Zig Ziglar' },
+    ];
+
+    let tasks = loadTasks();
+    let nextId = tasks.length ? Math.max(...tasks.map(t => t.id)) + 1 : 1;
+    let selectedCategory = 'work';
+    let activeFilter = 'all';
+
+    const taskForm       = document.getElementById('taskForm');
+    const taskInput      = document.getElementById('taskInput');
+    const taskList       = document.getElementById('taskList');
+    const emptyState     = document.getElementById('emptyState');
+    const emptyText      = document.getElementById('emptyText');
+    const footer         = document.getElementById('footer');
+    const taskCounter    = document.getElementById('taskCounter');
+    const clearCompleted = document.getElementById('clearCompleted');
+    const progressBar    = document.getElementById('progressBar');
+    const progressPercent = document.getElementById('progressPercent');
+    const progressLabel  = document.getElementById('progressLabel');
+    const quoteText      = document.getElementById('quoteText');
+    const quoteAuthor    = document.getElementById('quoteAuthor');
+    const categoryPicker = document.getElementById('categoryPicker');
+    const filterTabs     = document.querySelectorAll('.filter-tab');
+
+    function loadTasks() {
+      try {
+        const data = localStorage.getItem(STORAGE_KEY);
+        const parsed = data ? JSON.parse(data) : [];
+        return parsed.map(t => ({ ...t, category: t.category || 'personal' }));
+      } catch {
+        return [];
+      }
+    }
+
+    function saveTasks() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(tasks));
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function getFilteredTasks() {
+      if (activeFilter === 'active') return tasks.filter(t => !t.completed);
+      if (activeFilter === 'completed') return tasks.filter(t => t.completed);
+      return tasks;
+    }
+
+    function updateStats() {
+      const total     = tasks.length;
+      const remaining = tasks.filter(t => !t.completed).length;
+      const completed = total - remaining;
+      const percent   = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+      taskCounter.textContent = total === 0 ? 'нет задач' : `осталось ${remaining} из ${total}`;
+      progressBar.style.width = `${percent}%`;
+      progressPercent.textContent = `${percent}%`;
+      progressLabel.textContent = total === 0
+        ? 'Добавьте задачи, чтобы начать'
+        : completed === total
+          ? 'Все задачи выполнены — отличная работа!'
+          : `Выполнено ${completed} из ${total} задач`;
+
+      footer.classList.toggle('hidden', completed === 0);
+
+      const filtered = getFilteredTasks();
+      emptyState.classList.toggle('hidden', filtered.length > 0);
+      taskList.classList.toggle('hidden', filtered.length === 0);
+
+      const emptyMessages = {
+        all: 'Пока нет задач',
+        active: 'Нет задач в работе',
+        completed: 'Нет завершённых задач',
+      };
+      emptyText.textContent = emptyMessages[activeFilter];
+    }
+
+    function showRandomQuote() {
+      const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
+      quoteText.textContent = `"${q.text}"`;
+      quoteAuthor.textContent = `— ${q.author}`;
+    }
+
+    function createTaskElement(task) {
+      const cat = CATEGORIES[task.category] || CATEGORIES.personal;
+      const li = document.createElement('li');
+      li.dataset.id = task.id;
+      li.className = 'task-enter group flex items-center gap-3 px-4 py-3.5 mx-2 rounded-xl hover:bg-white/5 transition-colors';
+
+      li.innerHTML = `
+        <button class="toggle-btn flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-all
+          ${task.completed
+            ? 'bg-gradient-to-br from-indigo-500 to-purple-500 border-transparent'
+            : 'border-white/20 hover:border-indigo-400'}"
+          aria-label="Отметить выполненной">
+          ${task.completed
+            ? `<svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="3" d="M5 13l4 4L19 7"/>
+               </svg>`
+            : ''}
+        </button>
+        <div class="flex-1 min-w-0">
+          <span class="block text-sm break-words transition-all
+            ${task.completed ? 'line-through text-white/30' : 'text-white/80'}">${escapeHtml(task.text)}</span>
+        </div>
+        <span class="flex-shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wide border ${cat.badge}">${cat.label}</span>
+        <button class="delete-btn flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center
+          text-white/20 hover:text-rose-400 hover:bg-rose-500/10 opacity-0 group-hover:opacity-100 transition-all"
+          aria-label="Удалить">
+          <svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
+          </svg>
+        </button>
+      `;
+
+      li.querySelector('.toggle-btn').addEventListener('click', () => toggleTask(task.id));
+      li.querySelector('.delete-btn').addEventListener('click', () => deleteTask(task.id));
+      return li;
+    }
+
+    function render() {
+      taskList.innerHTML = '';
+      getFilteredTasks().forEach(task => taskList.appendChild(createTaskElement(task)));
+      updateStats();
+    }
+
+    function addTask(text) {
+      const trimmed = text.trim();
+      if (!trimmed) return;
+
+      tasks.unshift({ id: nextId++, text: trimmed, completed: false, category: selectedCategory });
+      saveTasks();
+      render();
+
+      const first = taskList.firstElementChild;
+      if (first) first.classList.add('task-enter');
+    }
+
+    function deleteTask(id) {
+      const el = taskList.querySelector(`[data-id="${id}"]`);
+      if (el) {
+        el.classList.add('task-exit');
+        el.addEventListener('animationend', () => {
+          tasks = tasks.filter(t => t.id !== id);
+          saveTasks();
+          render();
+        }, { once: true });
+      } else {
+        tasks = tasks.filter(t => t.id !== id);
+        saveTasks();
+        render();
+      }
+    }
+
+    function toggleTask(id) {
+      const task = tasks.find(t => t.id === id);
+      if (task) {
+        task.completed = !task.completed;
+        saveTasks();
+        render();
+      }
+    }
+
+    categoryPicker.addEventListener('click', e => {
+      const btn = e.target.closest('[data-category]');
+      if (!btn) return;
+      selectedCategory = btn.dataset.category;
+      categoryPicker.querySelectorAll('.category-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+
+    filterTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        activeFilter = tab.dataset.filter;
+        filterTabs.forEach(t => t.classList.toggle('tab-active', t === tab));
+        render();
+      });
+    });
+
+    taskForm.addEventListener('submit', e => {
+      e.preventDefault();
+      addTask(taskInput.value);
+      taskInput.value = '';
+      taskInput.focus();
+    });
+
+    clearCompleted.addEventListener('click', () => {
+      tasks = tasks.filter(t => !t.completed);
+      saveTasks();
+      render();
+    });
+
+    showRandomQuote();
+    render();
+    taskInput.focus();
+  </script>
+</body>
+</html>
